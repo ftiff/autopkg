@@ -19,6 +19,7 @@ import os.path
 import glob
 import string
 import zipfile
+import re
 
 #pylint: disable=no-name-in-module
 try:
@@ -62,7 +63,7 @@ class AppArchiveVersioner(Processor):
     def read_bundle_info(self, plist):
         """Parses Info.plist (as string)"""
         #pylint: disable=no-self-use
-        plist_nsdata = buffer(plist)#NSData.alloc().initWithBytes_length_(plist, len(plist))
+        plist_nsdata = buffer(plist)
         
         #pylint: disable=line-too-long
         info, _, error = (
@@ -90,7 +91,9 @@ class AppArchiveVersioner(Processor):
                 
                 # Get Info.plist path in archive
                 zip_contents = zip.namelist()
-                infoPlist_list = [s for s in zip_contents if "app/Contents/Info.plist" in s]
+                pattern = r'[^/]*.app/Contents/Info.plist'
+                infoPlist_list = [s for s in zip_contents if re.match(pattern, s)]
+                
                 assert len(infoPlist_list) == 1, "Archive should contain exactly one Info.plist" 
                 
                 # Get the name of app
@@ -102,8 +105,8 @@ class AppArchiveVersioner(Processor):
                 raise ProcessorError(err)
                 
         info = self.read_bundle_info(infoPlist)
-        self.env["app_name"] = app_name
         try:
+            self.env["app_name"] = app_name
             self.env["bundleid"] = info["CFBundleIdentifier"]
             self.env["version"] = info["CFBundleShortVersionString"]
             self.output("BundleID: %s" % self.env["bundleid"])
