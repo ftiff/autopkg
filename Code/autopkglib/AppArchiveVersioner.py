@@ -15,20 +15,20 @@
 # limitations under the License.
 """See docstring for AppDmgVersioner class"""
 
-import os.path
-import glob
 import string
 import zipfile
 import re
 
 #pylint: disable=no-name-in-module
+#pylint: disable=line-too-long
 try:
-    from Foundation import NSData, NSPropertyListSerialization
+    from Foundation import NSPropertyListSerialization
     from Foundation import NSPropertyListMutableContainers
-except:
+except ImportError:
     print "WARNING: Failed 'from Foundation import NSData, NSPropertyListSerialization' in " + __name__
     print "WARNING: Failed 'from Foundation import NSPropertyListMutableContainers' in " + __name__
 #pylint: enable=no-name-in-module
+#pylint: enable=line-too-long
 
 from autopkglib import Processor, ProcessorError
 
@@ -64,7 +64,7 @@ class AppArchiveVersioner(Processor):
         """Parses Info.plist (as string)"""
         #pylint: disable=no-self-use
         plist_nsdata = buffer(plist)
-        
+
         #pylint: disable=line-too-long
         info, _, error = (
             NSPropertyListSerialization.propertyListFromData_mutabilityOption_format_errorDescription_(
@@ -87,24 +87,24 @@ class AppArchiveVersioner(Processor):
                 "Expected an 'zip_path' input variable but none is set!")
         # Get Info.plist from the archive
         try:
-            with zipfile.ZipFile(zip_path, 'r') as zip:
-                
+            with zipfile.ZipFile(zip_path, 'r') as zip_file:
+
                 # Get Info.plist path in archive
-                zip_contents = zip.namelist()
+                zip_contents = zip_file.namelist()
                 pattern = r'[^/]*.app/Contents/Info.plist'
-                infoPlist_list = [s for s in zip_contents if re.match(pattern, s)]
-                
-                assert len(infoPlist_list) == 1, "Archive should contain exactly one Info.plist" 
-                
+                info_plist_list = [s for s in zip_contents if re.match(pattern, s)]
+
+                assert len(info_plist_list) == 1, "Archive should contain exactly one Info.plist"
+
                 # Get the name of app
-                app_name = string.split(infoPlist_list[0], '/')[0]
-                
+                app_name = string.split(info_plist_list[0], '/')[0]
+
                 # read Info.plist
-                infoPlist = zip.read(infoPlist_list[0])
+                info_plist = zip_file.read(info_plist_list[0])
         except BaseException as err:
-                raise ProcessorError(err)
-                
-        info = self.read_bundle_info(infoPlist)
+            raise ProcessorError(err)
+
+        info = self.read_bundle_info(info_plist)
         try:
             self.env["app_name"] = app_name
             self.env["bundleid"] = info["CFBundleIdentifier"]
