@@ -35,6 +35,7 @@ from autopkglib import Processor, ProcessorError
 
 __all__ = ["AppArchiveVersioner"]
 
+DEFAULT_VERSION_FIELD = 'CFBundleVersion'
 
 class AppArchiveVersioner(Processor):
     # we dynamically set the docstring from the description (DRY), so:
@@ -43,18 +44,28 @@ class AppArchiveVersioner(Processor):
     input_variables = {
         "zip_path": {
             "required": True,
-            "description": "Path to a zip containing an app.",
+            "description": "Path to a zip file containing an app.",
+        },
+        "info_plist_path": {
+            "required": False,
+            "description": ("Relative path to the Info.plist inside zip. "
+                            "Default is [Application].app/Contents/Info.plist.")
+        },
+        "version_field": {
+            "required": False,
+            "description": ("Specify which key is used to determine version number. "
+                            "Defaults to {}".format(DEFAULT_VERSION_FIELD))
         },
     }
     output_variables = {
         "app_name": {
-            "description": "Name of app found on the disk image."
+            "description": "Name of app (CFBundleName)."
         },
         "bundleid": {
-            "description": "Bundle identifier of the app.",
+            "description": "Bundle identifier of the app (CFBundleIdentifier).",
         },
         "version": {
-            "description": "Version of the app.",
+            "description": "Version of the app (CFBundleVersion).",
         },
     }
 
@@ -89,33 +100,36 @@ class AppArchiveVersioner(Processor):
         try:
             with zipfile.ZipFile(zip_path, 'r') as zip_file:
 
-                # Get Info.plist path in archive
-                zip_contents = zip_file.namelist()
-                pattern = r'[^/]*.app/Contents/Info.plist'
-                info_plist_list = [s for s in zip_contents if re.match(pattern, s)]
+                info_plist_path = self.env.get("info_plist_path")
+                if info_plist_path:
+                    info_plist = zip_file.read(info_plist_path)
+                else:
+                    # Get Info.plist path in archive
+                    zip_contents = zip_file.namelist()
+                    pattern = r'[^/]*.app/Contents/Info.plist'
+                    info_plist_list = [s for s in zip_contents if re.match(pattern, s)]
 
-                assert len(info_plist_list) == 1, "Archive should contain exactly one Info.plist"
+                    assert len(info_plist_list) == 1, "Archive should contain exactly one Info.plist"
 
-                # Get the name of app
-                app_name = string.split(info_plist_list[0], '/')[0]
-
-                # read Info.plist
-                info_plist = zip_file.read(info_plist_list[0])
+                    # read Info.plist
+                    info_plist = zip_file.read(info_plist_list[0])
         except BaseException as err:
             raise ProcessorError(err)
 
         info = self.read_bundle_info(info_plist)
         try:
-            self.env["app_name"] = app_name
+            version_field = self.env.get("version_field", DEFAULT_VERSION_FIELD)
+            self.env["app_name"] = info["CFBundleName"]
             self.env["bundleid"] = info["CFBundleIdentifier"]
-            self.env["version"] = info["CFBundleShortVersionString"]
+            self.env["version"] = info[version_field]
             self.output("BundleID: %s" % self.env["bundleid"])
             self.output("Version: %s" % self.env["version"])
+        except KeyError as err:
+            raise ProcessorError("The following field doesn't exist in Info.plist: {}".format(err))
         except BaseException as err:
             raise ProcessorError(err)
 
 
 if __name__ == '__main__':
-    PROCESSOR = AppArchiveVersioner()
-    PROCESSOR.execute_shell()
+    pass
 
